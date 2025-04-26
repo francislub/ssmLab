@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { hash } from "bcrypt"
+import { hash } from "bcryptjs"
 
 export async function createUser(data: {
   name: string
