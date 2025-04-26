@@ -28,6 +28,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { getPatientById } from "@/lib/actions/patient-actions"
 import { createAppointment } from "@/lib/actions/appointment-actions"
 import { createDiagnosis } from "@/lib/actions/diagnosis-actions"
+import { getDoctors } from "@/lib/actions/user-actions"
 import { useSession } from "next-auth/react"
 
 export default function PatientDetailsPage() {
@@ -40,6 +41,7 @@ export default function PatientDetailsPage() {
   const [isAddDiagnosisOpen, setIsAddDiagnosisOpen] = useState(false)
   const [isAddTestOpen, setIsAddTestOpen] = useState(false)
   const [patient, setPatient] = useState<any>(null)
+  const [doctors, setDoctors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   // Form states
@@ -63,22 +65,31 @@ export default function PatientDetailsPage() {
   })
 
   useEffect(() => {
-    const fetchPatient = async () => {
+    const fetchData = async () => {
       setLoading(true)
-      const result = await getPatientById(patientId)
-      if (result.error) {
+
+      // Fetch doctors
+      const doctorsResult = await getDoctors()
+      if (!doctorsResult.error) {
+        setDoctors(doctorsResult.doctors)
+      }
+
+      // Fetch patient data
+      const patientResult = await getPatientById(patientId)
+      if (patientResult.error) {
         toast({
           title: "Error",
-          description: result.error,
+          description: patientResult.error,
           variant: "destructive",
         })
       } else {
-        setPatient(result.patient)
+        setPatient(patientResult.patient)
       }
+
       setLoading(false)
     }
 
-    fetchPatient()
+    fetchData()
   }, [patientId, toast])
 
   const handleAppointmentInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -363,9 +374,11 @@ export default function PatientDetailsPage() {
                         <SelectValue placeholder="Select doctor" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="dr-sarah">Dr. Sarah Johnson</SelectItem>
-                        <SelectItem value="dr-michael">Dr. Michael Chen</SelectItem>
-                        <SelectItem value="dr-james">Dr. James Wilson</SelectItem>
+                        {doctors.map((doctor) => (
+                          <SelectItem key={doctor.id} value={doctor.id}>
+                            {doctor.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

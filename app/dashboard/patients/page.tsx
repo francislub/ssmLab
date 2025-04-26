@@ -17,12 +17,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Filter, UserPlus } from "lucide-react"
+import { Search, Filter, UserPlus, Trash2, Edit } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { getPatients, createPatient } from "@/lib/actions/patient-actions"
+import { getPatients, createPatient, updatePatient, deletePatient } from "@/lib/actions/patient-actions"
+import { getDoctors } from "@/lib/actions/user-actions"
 import { useSession } from "next-auth/react"
 
 export default function PatientsPage() {
@@ -30,9 +41,13 @@ export default function PatientsPage() {
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddPatientOpen, setIsAddPatientOpen] = useState(false)
+  const [isEditPatientOpen, setIsEditPatientOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
   const [patients, setPatients] = useState<any[]>([])
+  const [doctors, setDoctors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -45,22 +60,31 @@ export default function PatientsPage() {
   })
 
   useEffect(() => {
-    const fetchPatients = async () => {
+    const fetchData = async () => {
       setLoading(true)
-      const result = await getPatients(searchTerm)
-      if (result.error) {
+
+      // Fetch doctors
+      const doctorsResult = await getDoctors()
+      if (!doctorsResult.error) {
+        setDoctors(doctorsResult.doctors)
+      }
+
+      // Fetch patients
+      const patientsResult = await getPatients(searchTerm)
+      if (patientsResult.error) {
         toast({
           title: "Error",
-          description: result.error,
+          description: patientsResult.error,
           variant: "destructive",
         })
       } else {
-        setPatients(result.patients)
+        setPatients(patientsResult.patients)
       }
+
       setLoading(false)
     }
 
-    fetchPatients()
+    fetchData()
   }, [searchTerm, toast])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,6 +141,101 @@ export default function PatientsPage() {
     }
   }
 
+  const handleEditPatient = (patient: any) => {
+    setSelectedPatient(patient)
+    setFormData({
+      name: patient.name,
+      email: patient.email || "",
+      phone: patient.phone,
+      address: patient.address || "",
+      dateOfBirth: patient.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().split("T")[0] : "",
+      gender: patient.gender || "",
+      bloodGroup: patient.bloodGroup || "",
+      doctorId: patient.doctorId || "",
+    })
+    setIsEditPatientOpen(true)
+  }
+
+  const handleUpdatePatient = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!selectedPatient) return
+
+    const result = await updatePatient(selectedPatient.id, {
+      name: formData.name,
+      email: formData.email || undefined,
+      phone: formData.phone,
+      address: formData.address || undefined,
+      dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
+      gender: formData.gender || undefined,
+      bloodGroup: formData.bloodGroup || undefined,
+      doctorId: formData.doctorId || undefined,
+    })
+
+    if (result.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Success",
+        description: "Patient updated successfully",
+      })
+      setIsEditPatientOpen(false)
+      setSelectedPatient(null)
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+        dateOfBirth: "",
+        gender: "",
+        bloodGroup: "",
+        doctorId: "",
+      })
+
+      // Refresh patient list
+      const updatedResult = await getPatients(searchTerm)
+      if (!updatedResult.error) {
+        setPatients(updatedResult.patients)
+      }
+    }
+  }
+
+  const handleDeleteClick = (patient: any) => {
+    setSelectedPatient(patient)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeletePatient = async () => {
+    if (!selectedPatient) return
+
+    const result = await deletePatient(selectedPatient.id)
+
+    if (result.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Success",
+        description: "Patient deleted successfully",
+      })
+      setIsDeleteDialogOpen(false)
+      setSelectedPatient(null)
+
+      // Refresh patient list
+      const updatedResult = await getPatients(searchTerm)
+      if (!updatedResult.error) {
+        setPatients(updatedResult.patients)
+      }
+    }
+  }
+
   // Filter patients based on active tab
   const filteredPatients = patients.filter((patient) => {
     if (activeTab === "all") return true
@@ -129,6 +248,128 @@ export default function PatientsPage() {
     }
     return true
   })
+
+  const renderPatientForm = (isEdit = false, onSubmit: (e: React.FormEvent) => Promise<void>) => (
+    <form onSubmit={onSubmit}>
+      <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <Input
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              placeholder="John Doe"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input
+              id="phone"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              placeholder="+256 7XX XXX XXX"
+              required
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="gender">Gender</Label>
+            <Select value={formData.gender} onValueChange={(value) => handleSelectChange("gender", value)}>
+              <SelectTrigger id="gender">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="dateOfBirth">Date of Birth</Label>
+            <Input
+              id="dateOfBirth"
+              name="dateOfBirth"
+              value={formData.dateOfBirth}
+              onChange={handleInputChange}
+              type="date"
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="email">Email (Optional)</Label>
+          <Input
+            id="email"
+            name="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            type="email"
+            placeholder="john.doe@example.com"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="address">Address</Label>
+          <Input
+            id="address"
+            name="address"
+            value={formData.address}
+            onChange={handleInputChange}
+            placeholder="123 Main St, Kampala"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="bloodGroup">Blood Group</Label>
+            <Select value={formData.bloodGroup} onValueChange={(value) => handleSelectChange("bloodGroup", value)}>
+              <SelectTrigger id="bloodGroup">
+                <SelectValue placeholder="Select blood group" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A+">A+</SelectItem>
+                <SelectItem value="A-">A-</SelectItem>
+                <SelectItem value="B+">B+</SelectItem>
+                <SelectItem value="B-">B-</SelectItem>
+                <SelectItem value="AB+">AB+</SelectItem>
+                <SelectItem value="AB-">AB-</SelectItem>
+                <SelectItem value="O+">O+</SelectItem>
+                <SelectItem value="O-">O-</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="assignDoctor">Assign Doctor</Label>
+            <Select value={formData.doctorId} onValueChange={(value) => handleSelectChange("doctorId", value)}>
+              <SelectTrigger id="assignDoctor">
+                <SelectValue placeholder="Select doctor" />
+              </SelectTrigger>
+              <SelectContent>
+                {doctors.map((doctor) => (
+                  <SelectItem key={doctor.id} value={doctor.id}>
+                    {doctor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() => (isEdit ? setIsEditPatientOpen(false) : setIsAddPatientOpen(false))}
+        >
+          Cancel
+        </Button>
+        <Button type="submit">{isEdit ? "Update Patient" : "Register Patient"}</Button>
+      </DialogFooter>
+    </form>
+  )
 
   return (
     <div className="space-y-6">
@@ -149,122 +390,7 @@ export default function PatientsPage() {
               <DialogTitle>Add New Patient</DialogTitle>
               <DialogDescription>Enter the patient's information to register them in the system.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      placeholder="John Doe"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      placeholder="+256 7XX XXX XXX"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="gender">Gender</Label>
-                    <Select value={formData.gender} onValueChange={(value) => handleSelectChange("gender", value)}>
-                      <SelectTrigger id="gender">
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                    <Input
-                      id="dateOfBirth"
-                      name="dateOfBirth"
-                      value={formData.dateOfBirth}
-                      onChange={handleInputChange}
-                      type="date"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email (Optional)</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    type="email"
-                    placeholder="john.doe@example.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    placeholder="123 Main St, Kampala"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bloodGroup">Blood Group</Label>
-                    <Select
-                      value={formData.bloodGroup}
-                      onValueChange={(value) => handleSelectChange("bloodGroup", value)}
-                    >
-                      <SelectTrigger id="bloodGroup">
-                        <SelectValue placeholder="Select blood group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="A+">A+</SelectItem>
-                        <SelectItem value="A-">A-</SelectItem>
-                        <SelectItem value="B+">B+</SelectItem>
-                        <SelectItem value="B-">B-</SelectItem>
-                        <SelectItem value="AB+">AB+</SelectItem>
-                        <SelectItem value="AB-">AB-</SelectItem>
-                        <SelectItem value="O+">O+</SelectItem>
-                        <SelectItem value="O-">O-</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="assignDoctor">Assign Doctor</Label>
-                    <Select value={formData.doctorId} onValueChange={(value) => handleSelectChange("doctorId", value)}>
-                      <SelectTrigger id="assignDoctor">
-                        <SelectValue placeholder="Select doctor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="dr-sarah">Dr. Sarah Johnson</SelectItem>
-                        <SelectItem value="dr-michael">Dr. Michael Chen</SelectItem>
-                        <SelectItem value="dr-james">Dr. James Wilson</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setIsAddPatientOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Register Patient</Button>
-              </DialogFooter>
-            </form>
+            {renderPatientForm(false, handleSubmit)}
           </DialogContent>
         </Dialog>
       </div>
@@ -365,8 +491,18 @@ export default function PatientsPage() {
                                     View
                                   </Button>
                                 </Link>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => handleEditPatient(patient)}>
+                                  <Edit className="h-4 w-4 mr-1" />
                                   Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteClick(patient)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
                                 </Button>
                               </div>
                             </TableCell>
@@ -439,8 +575,16 @@ export default function PatientsPage() {
                                     View
                                   </Button>
                                 </Link>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => handleEditPatient(patient)}>
                                   Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteClick(patient)}
+                                >
+                                  Delete
                                 </Button>
                               </div>
                             </TableCell>
@@ -499,6 +643,36 @@ export default function PatientsPage() {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Edit Patient Dialog */}
+      <Dialog open={isEditPatientOpen} onOpenChange={setIsEditPatientOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Patient</DialogTitle>
+            <DialogDescription>Update the patient's information.</DialogDescription>
+          </DialogHeader>
+          {renderPatientForm(true, handleUpdatePatient)}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the patient record and all associated data from
+              the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePatient} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

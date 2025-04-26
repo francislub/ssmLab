@@ -31,6 +31,7 @@ import {
   getAppointmentStats,
 } from "@/lib/actions/appointment-actions"
 import { getPatients } from "@/lib/actions/patient-actions"
+import { getDoctors } from "@/lib/actions/user-actions"
 
 export default function AppointmentsPage() {
   const { data: session } = useSession()
@@ -40,6 +41,7 @@ export default function AppointmentsPage() {
   const [isAddAppointmentOpen, setIsAddAppointmentOpen] = useState(false)
   const [appointments, setAppointments] = useState<any[]>([])
   const [patients, setPatients] = useState<any[]>([])
+  const [doctors, setDoctors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<any>({
     weeklyAppointments: [],
@@ -67,6 +69,12 @@ export default function AppointmentsPage() {
       const patientsResult = await getPatients()
       if (!patientsResult.error) {
         setPatients(patientsResult.patients)
+      }
+
+      // Fetch doctors for the appointment form
+      const doctorsResult = await getDoctors()
+      if (!doctorsResult.error) {
+        setDoctors(doctorsResult.doctors)
       }
 
       // Fetch appointments
@@ -253,9 +261,11 @@ export default function AppointmentsPage() {
                       <SelectValue placeholder="Select doctor" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="dr-sarah">Dr. Sarah Johnson</SelectItem>
-                      <SelectItem value="dr-michael">Dr. Michael Chen</SelectItem>
-                      <SelectItem value="dr-james">Dr. James Wilson</SelectItem>
+                      {doctors.map((doctor) => (
+                        <SelectItem key={doctor.id} value={doctor.id}>
+                          {doctor.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -69,6 +69,29 @@ export async function getUsers(role?: string) {
   }
 }
 
+export async function getDoctors() {
+  try {
+    const doctors = await prisma.user.findMany({
+      where: {
+        role: "DOCTOR",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    })
+
+    return { doctors }
+  } catch (error) {
+    console.error("Error fetching doctors:", error)
+    return { error: "Failed to fetch doctors" }
+  }
+}
+
 export async function getUserById(id: string) {
   try {
     const user = await prisma.user.findUnique({
