@@ -1,0 +1,251 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String    @unique
+  password       String
+  role           Role      @default(RECEPTIONIST)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patients       Patient[]  @relation("AssignedDoctor")
+  appointments   Appointment[] @relation("DoctorAppointments")
+  diagnoses      Diagnosis[] @relation("DoctorDiagnosis")
+  testResults    TestResult[] @relation("TechnicianTestResult")
+  payments       Payment[] @relation("CashierPayment")
+  medications    MedicationDispense[] @relation("PharmacistDispense")
+  referralsFrom  Referral[] @relation("ReferringDoctor")
+  referralsTo    Referral[] @relation("Specialist")
+}
+
+enum Role {
+  ADMIN
+  RECEPTIONIST
+  DOCTOR
+  LAB_TECHNICIAN
+  CASHIER
+  PHARMACIST
+  NURSE
+}
+
+model Patient {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  email          String?
+  phone          String
+  address        String?
+  dateOfBirth    DateTime?
+  gender         String?
+  bloodGroup     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  doctor         User?     @relation("AssignedDoctor", fields: [doctorId], references: [id])
+  doctorId       String?   @db.ObjectId
+  appointments   Appointment[]
+  diagnoses      Diagnosis[]
+  testResults    TestResult[]
+  prescriptions  Prescription[]
+  payments       Payment[]
+  medicationDispenses MedicationDispense[]
+  referrals      Referral[]
+}
+
+model Appointment {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  date           DateTime
+  status         AppointmentStatus @default(SCHEDULED)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  patientId      String    @db.ObjectId
+  doctor         User      @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  doctorId       String    @db.ObjectId
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Diagnosis {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  notes          String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  patientId      String    @db.ObjectId
+  doctor         User      @relation("DoctorDiagnosis", fields: [doctorId], references: [id])
+  doctorId       String    @db.ObjectId
+  testRequests   TestRequest[]
+  prescriptions  Prescription[]
+}
+
+model TestRequest {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  testType       String
+  status         TestStatus @default(REQUESTED)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  diagnosis      Diagnosis @relation(fields: [diagnosisId], references: [id])
+  diagnosisId    String    @db.ObjectId
+  testResult     TestResult?
+}
+
+enum TestStatus {
+  REQUESTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model TestResult {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  result         String
+  reportUrl      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  patientId      String    @db.ObjectId
+  technician     User      @relation("TechnicianTestResult", fields: [technicianId], references: [id])
+  technicianId   String    @db.ObjectId
+  testRequest    TestRequest @relation(fields: [testRequestId], references: [id])
+  testRequestId  String    @unique @db.ObjectId
+}
+
+model Prescription {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  patientId      String    @db.ObjectId
+  diagnosis      Diagnosis @relation(fields: [diagnosisId], references: [id])
+  diagnosisId    String    @db.ObjectId
+  medications    PrescriptionMedication[]
+}
+
+model PrescriptionMedication {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  medicationName String
+  dosage         String
+  frequency      String
+  duration       String
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  prescriptionId String    @db.ObjectId
+  medicationDispenses MedicationDispense[]
+}
+
+model Payment {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  amount         Float
+  paymentMethod  String
+  description    String
+  status         PaymentStatus @default(COMPLETED)
+  receiptNumber  String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  patientId      String    @db.ObjectId
+  cashier        User      @relation("CashierPayment", fields: [cashierId], references: [id])
+  cashierId      String    @db.ObjectId
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model MedicationInventory {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  name           String    @unique
+  category       String
+  quantity       Int
+  unitPrice      Float
+  expiryDate     DateTime?
+  supplier       String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model MedicationDispense {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  quantity       Int
+  status         DispenseStatus @default(PENDING)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  patientId      String    @db.ObjectId
+  pharmacist     User      @relation("PharmacistDispense", fields: [pharmacistId], references: [id])
+  pharmacistId   String    @db.ObjectId
+  medication     PrescriptionMedication @relation(fields: [medicationId], references: [id])
+  medicationId   String    @db.ObjectId
+}
+
+enum DispenseStatus {
+  PENDING
+  DISPENSED
+  OUT_OF_STOCK
+  CANCELLED
+}
+
+model Referral {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  reason            String
+  notes             String?
+  status            ReferralStatus @default(PENDING)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  patient           Patient   @relation(fields: [patientId], references: [id])
+  patientId         String    @db.ObjectId
+  referringDoctor   User      @relation("ReferringDoctor", fields: [referringDoctorId], references: [id])
+  referringDoctorId String    @db.ObjectId
+  specialist        User      @relation("Specialist", fields: [specialistId], references: [id])
+  specialistId      String    @db.ObjectId
+}
+
+enum ReferralStatus {
+  PENDING
+  ACCEPTED
+  COMPLETED
+  REJECTED
+}
