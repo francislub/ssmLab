@@ -92,3 +92,49 @@ export async function changePassword(userId: string, data: { currentPassword: st
     return { error: "Failed to change password" }
   }
 }
+
+// Add reset password functionality
+
+export async function resetPassword(email: string) {
+  try {
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+    })
+
+    if (!user) {
+      return { error: "No account found with this email" }
+    }
+
+    // In a real application, you would:
+    // 1. Generate a reset token
+    // 2. Store it in the database with an expiration
+    // 3. Send an email with a reset link
+
+    // For demo purposes, we'll just generate a temporary password
+    const tempPassword = Math.random().toString(36).slice(-8)
+    const hashedPassword = await hash(tempPassword, 10)
+
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        password: hashedPassword,
+      },
+    })
+
+    // In a real app, you would send this via email
+    // For demo, we'll just return it
+    return {
+      success: true,
+      message: "Password has been reset. In a real application, an email would be sent.",
+      tempPassword, // Only for demo purposes
+    }
+  } catch (error) {
+    console.error("Reset password error:", error)
+    return { error: "Failed to reset password" }
+  }
+}

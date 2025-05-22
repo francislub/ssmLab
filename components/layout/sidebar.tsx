@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { signOut } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -106,7 +107,7 @@ export function Sidebar({ isMobileOpen, setIsMobileOpen }: SidebarProps) {
   const filteredNavigation = navigation.filter((item) => item.roles.includes(userRole))
 
   const handleSignOut = async () => {
-    // Handle sign out logic
+    await signOut({ callbackUrl: "/login" })
   }
 
   return (
@@ -133,7 +134,7 @@ export function Sidebar({ isMobileOpen, setIsMobileOpen }: SidebarProps) {
         <div className="flex h-16 items-center justify-between px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             {!isCollapsed ? (
-              <span className="text-xl font-bold">SSM LAB</span>
+              <span className="text-xl font-bold">Kebera LAB</span>
             ) : (
               <span className="text-xl font-bold">SL</span>
             )}

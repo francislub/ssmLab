@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/components/ui/use-toast"
 import { changePassword } from "@/lib/actions/auth-actions"
+import { updateUserProfile } from "@/lib/actions/user-actions"
 
 export default function ProfilePage() {
   const { data: session } = useSession()
@@ -25,9 +26,24 @@ export default function ProfilePage() {
     confirmPassword: "",
   })
 
+  // Add state for profile form
+  const [profileForm, setProfileForm] = useState({
+    name: session?.user?.name || "",
+    email: session?.user?.email || "",
+  })
+
+  // Add loading state for profile update
+  const [profileLoading, setProfileLoading] = useState(false)
+
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setPasswordForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  // Add handler for profile form changes
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setProfileForm((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleSubmitPasswordChange = async (e: React.FormEvent) => {
@@ -79,6 +95,34 @@ export default function ProfilePage() {
     setLoading(false)
   }
 
+  // Add handler for profile form submission
+  const handleSubmitProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setProfileLoading(true)
+
+    const result = await updateUserProfile(session?.user?.id || "", {
+      name: profileForm.name,
+      email: profileForm.email,
+    })
+
+    if (result.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      })
+      // Update session data (this is a simplified approach)
+      // In a real app, you might want to refresh the session
+    }
+
+    setProfileLoading(false)
+  }
+
   if (!session) {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -127,21 +171,32 @@ export default function ProfilePage() {
               </TabsList>
 
               <TabsContent value="profile" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={session.user?.name || ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" defaultValue={session.user?.email || ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Input id="role" value={session.user?.role?.replace("_", " ") || ""} disabled />
-                </div>
-                <div className="pt-4">
-                  <Button>Save Changes</Button>
-                </div>
+                <form onSubmit={handleSubmitProfileUpdate}>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input id="name" name="name" value={profileForm.name} onChange={handleProfileChange} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={profileForm.email}
+                      onChange={handleProfileChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Input id="role" value={session.user?.role?.replace("_", " ") || ""} disabled />
+                  </div>
+                  <div className="pt-4">
+                    <Button type="submit" disabled={profileLoading}>
+                      {profileLoading ? "Saving Changes..." : "Save Changes"}
+                    </Button>
+                  </div>
+                </form>
               </TabsContent>
 
               <TabsContent value="security" className="mt-4">

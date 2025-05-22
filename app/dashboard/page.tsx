@@ -27,6 +27,8 @@ import {
   getPatientRegistrationData,
   getTestDistributionData,
   getAppointmentData,
+  getPatientDemographicsData,
+  getTestResultsData,
 } from "@/lib/actions/dashboard-actions"
 import { getRevenueData } from "@/lib/actions/payment-actions"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -42,6 +44,8 @@ export default function DashboardPage() {
   const [appointmentData, setAppointmentData] = useState<any[]>([])
   const [revenueData, setRevenueData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [demographicsData, setDemographicsData] = useState<any[]>([])
+  const [testResultsData, setTestResultsData] = useState<any[]>([])
 
   const userRole = session?.user?.role || "RECEPTIONIST"
 
@@ -78,6 +82,18 @@ export default function DashboardPage() {
         const revenueResult = await getRevenueData()
         if (!revenueResult.error) {
           setRevenueData(revenueResult.revenueData)
+        }
+
+        // Fetch patient demographics data
+        const demographicsResult = await getPatientDemographicsData()
+        if (!demographicsResult.error) {
+          setDemographicsData(demographicsResult.demographicsData)
+        }
+
+        // Fetch test results data
+        const resultsResult = await getTestResultsData()
+        if (!resultsResult.error) {
+          setTestResultsData(resultsResult.resultsData)
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
@@ -284,18 +300,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={[
-                        { age: "0-10", male: 50, female: 45 },
-                        { age: "11-20", male: 35, female: 40 },
-                        { age: "21-30", male: 60, female: 70 },
-                        { age: "31-40", male: 80, female: 85 },
-                        { age: "41-50", male: 70, female: 65 },
-                        { age: "51-60", male: 55, female: 50 },
-                        { age: "61-70", male: 40, female: 45 },
-                        { age: "71+", male: 30, female: 35 },
-                      ]}
-                    >
+                    <BarChart data={demographicsData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="age" />
                       <YAxis />
@@ -325,16 +330,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={[
-                        { month: "Jan", normal: 65, abnormal: 28, critical: 7 },
-                        { month: "Feb", normal: 59, abnormal: 32, critical: 9 },
-                        { month: "Mar", normal: 80, abnormal: 35, critical: 5 },
-                        { month: "Apr", normal: 81, abnormal: 30, critical: 11 },
-                        { month: "May", normal: 56, abnormal: 25, critical: 8 },
-                        { month: "Jun", normal: 55, abnormal: 20, critical: 5 },
-                      ]}
-                    >
+                    <LineChart data={testResultsData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />

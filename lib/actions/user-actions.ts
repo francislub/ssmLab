@@ -187,3 +187,52 @@ export async function deleteUser(id: string) {
     return { error: "Failed to delete user" }
   }
 }
+
+// Add function to update user profile
+
+export async function updateUserProfile(
+  id: string,
+  data: {
+    name?: string
+    email?: string
+  },
+) {
+  try {
+    // Check if email is already taken by another user
+    if (data.email) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: data.email,
+          NOT: {
+            id: id,
+          },
+        },
+      })
+
+      if (existingUser) {
+        return { error: "Email is already taken by another user" }
+      }
+    }
+
+    const user = await prisma.user.update({
+      where: {
+        id,
+      },
+      data,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+
+    revalidatePath("/dashboard/profile")
+    return { success: true, user }
+  } catch (error) {
+    console.error("Error updating user profile:", error)
+    return { error: "Failed to update profile" }
+  }
+}
