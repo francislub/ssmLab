@@ -417,37 +417,46 @@ export async function deletePayment(id: string) {
 
 export async function getRevenueData() {
   try {
-    // Get monthly revenue for the current year
+    // Get current year
     const currentYear = new Date().getFullYear()
-    const startDate = new Date(currentYear, 0, 1) // January 1st of current year
-    const endDate = new Date(currentYear + 1, 0, 1) // January 1st of next year
 
-    const monthlyRevenue = await prisma.$queryRaw`
-      SELECT 
-        EXTRACT(MONTH FROM "createdAt") as month,
-        SUM(amount) as revenue
-      FROM "Payment"
-      WHERE "createdAt" >= ${startDate} AND "createdAt" < ${endDate}
-      AND status = 'COMPLETED'
-      GROUP BY EXTRACT(MONTH FROM "createdAt")
-      ORDER BY month
-    `
-
-    // Format the data for the chart
+    // Create array for all months
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-    const revenueData = months.map((month, index) => {
-      const monthData = (monthlyRevenue as any[]).find((item) => Number(item.month) === index + 1)
-      return {
-        month,
-        revenue: monthData ? Number(monthData.revenue) : 0,
-      }
+    // Initialize data array with all months and zero revenue
+    const revenueData = months.map((month) => ({
+      month,
+      revenue: 0,
+    }))
+
+    // Get payments made this year
+    const payments = await prisma.payment.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(currentYear, 0, 1),
+          lt: new Date(currentYear + 1, 0, 1),
+        },
+        status: "COMPLETED",
+      },
+      select: {
+        amount: true,
+        createdAt: true,
+      },
+    })
+
+    // Sum payments by month
+    payments.forEach((payment) => {
+      const monthIndex = payment.createdAt.getMonth()
+      revenueData[monthIndex].revenue += payment.amount
     })
 
     return { revenueData }
   } catch (error) {
     console.error("Error fetching revenue data:", error)
-    return { error: "Failed to fetch revenue data" }
+    return {
+      error: "Failed to fetch revenue data",
+      revenueData: months.map((month) => ({ month, revenue: 0 })),
+    }
   }
 }
 

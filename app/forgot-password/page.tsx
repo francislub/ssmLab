@@ -9,22 +9,25 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
-import { resetPassword } from "@/lib/actions/auth-actions"
-import { KeyRound, Mail, ArrowLeft } from "lucide-react"
+import { checkEmailExists, resetPassword } from "@/lib/actions/auth-actions"
+import { KeyRound, Mail, ArrowLeft, Eye, EyeOff, Lock } from "lucide-react"
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [step, setStep] = useState<"email" | "password" | "complete">("email")
   const [resetComplete, setResetComplete] = useState(false)
-  const [tempPassword, setTempPassword] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const result = await resetPassword(email)
+      const result = await checkEmailExists(email)
 
       if (result.error) {
         toast({
@@ -33,13 +36,61 @@ export default function ForgotPasswordPage() {
           variant: "destructive",
         })
       } else {
+        setStep("password")
+        toast({
+          title: "Email Verified",
+          description: "Please enter your new password",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An error occurred while verifying your email",
+        variant: "destructive",
+      })
+    }
+
+    setIsLoading(false)
+  }
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (newPassword.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const result = await resetPassword(email, newPassword)
+
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      } else {
+        setStep("complete")
         setResetComplete(true)
-        // In a real app, you wouldn't show the temp password in the UI
-        // This is just for demo purposes
-        setTempPassword(result.tempPassword || "")
         toast({
           title: "Success",
-          description: result.message,
+          description: "Your password has been reset successfully",
         })
       }
     } catch (error) {
@@ -51,6 +102,10 @@ export default function ForgotPasswordPage() {
     }
 
     setIsLoading(false)
+  }
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
   }
 
   return (
@@ -65,11 +120,14 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
           <CardDescription className="text-center">
-            Enter your email address and we'll send you a link to reset your password
+            {step === "email" && "Enter your email address to reset your password"}
+            {step === "password" && "Enter your new password"}
+            {step === "complete" && "Your password has been reset successfully"}
           </CardDescription>
         </CardHeader>
-        {!resetComplete ? (
-          <form onSubmit={handleSubmit}>
+
+        {step === "email" && (
+          <form onSubmit={handleEmailSubmit}>
             <CardContent className="space-y-4 pt-6">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -92,10 +150,10 @@ export default function ForgotPasswordPage() {
                 {isLoading ? (
                   <>
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    Resetting...
+                    Verifying...
                   </>
                 ) : (
-                  "Reset Password"
+                  "Continue"
                 )}
               </Button>
               <div className="text-center text-sm">
@@ -106,26 +164,87 @@ export default function ForgotPasswordPage() {
               </div>
             </CardFooter>
           </form>
-        ) : (
+        )}
+
+        {step === "password" && (
+          <form onSubmit={handlePasswordSubmit}>
+            <CardContent className="space-y-4 pt-6">
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="newPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    required
+                    minLength={8}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-10 w-10 text-muted-foreground"
+                    onClick={togglePasswordVisibility}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    required
+                    minLength={8}
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground">Password must be at least 8 characters long</div>
+            </CardContent>
+            <CardFooter className="flex flex-col space-y-4">
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    Resetting...
+                  </>
+                ) : (
+                  "Reset Password"
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setStep("email")}
+                disabled={isLoading}
+              >
+                Back
+              </Button>
+            </CardFooter>
+          </form>
+        )}
+
+        {step === "complete" && (
           <CardContent className="space-y-4 pt-6">
             <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
               <p className="text-sm text-green-800 dark:text-green-200">
-                Password reset instructions have been sent to your email.
+                Your password has been reset successfully. You can now log in with your new password.
               </p>
             </div>
-            {tempPassword && (
-              <div className="rounded-lg bg-yellow-50 p-4 dark:bg-yellow-900/20">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-                  Demo Mode: Your temporary password is:
-                </p>
-                <p className="mt-1 font-mono text-center bg-white dark:bg-gray-800 p-2 rounded border">
-                  {tempPassword}
-                </p>
-                <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
-                  In a real application, this would be sent securely via email.
-                </p>
-              </div>
-            )}
             <Button asChild className="w-full mt-4">
               <Link href="/login">Return to Login</Link>
             </Button>
