@@ -17,8 +17,8 @@ export async function getDashboardStats(userRole: string) {
     const appointmentCount = await prisma.appointment.count()
     stats.push({ title: "Total Appointments", value: appointmentCount })
 
-    // Total tests
-    const testCount = await prisma.labTest.count()
+    // Total tests - using testResult model instead of labTest
+    const testCount = await prisma.testResult.count()
     stats.push({ title: "Total Lab Tests", value: testCount })
 
     // Total revenue (if user has permission)
@@ -28,7 +28,7 @@ export async function getDashboardStats(userRole: string) {
       stats.push({ title: "Total Revenue", value: `$${totalRevenue.toFixed(2)}` })
     } else {
       // Add a fourth stat for non-financial users
-      const pendingTests = await prisma.labTest.count({
+      const pendingTests = await prisma.testResult.count({
         where: { status: "PENDING" },
       })
       stats.push({ title: "Pending Tests", value: pendingTests })
@@ -80,9 +80,9 @@ export async function getPatientRegistrationData() {
 
 export async function getTestDistributionData() {
   try {
-    // Get test categories and counts
-    const testCategories = await prisma.labTest.groupBy({
-      by: ["category"],
+    // Get test categories and counts using testResult model
+    const testCategories = await prisma.testResult.groupBy({
+      by: ["testName"],
       _count: {
         id: true,
       },
@@ -90,7 +90,7 @@ export async function getTestDistributionData() {
 
     // Format data for pie chart
     const testData = testCategories.map((category) => ({
-      name: category.category || "Uncategorized",
+      name: category.testName || "Uncategorized",
       value: category._count.id,
     }))
 
@@ -241,8 +241,8 @@ export async function getTestResultsData() {
       critical: 0,
     }))
 
-    // Get lab tests with results from this year
-    const labTests = await prisma.labTest.findMany({
+    // Get test results from this year using testResult model
+    const testResults = await prisma.testResult.findMany({
       where: {
         createdAt: {
           gte: new Date(`${currentYear}-01-01`),
@@ -260,12 +260,11 @@ export async function getTestResultsData() {
     })
 
     // Count test results by month and category
-    labTests.forEach((test) => {
+    testResults.forEach((test) => {
       const monthIndex = test.createdAt.getMonth()
 
       if (test.result) {
         // Simple categorization based on result content
-        // You can enhance this logic based on your specific result format
         const resultLower = test.result.toLowerCase()
 
         if (resultLower.includes("critical") || resultLower.includes("urgent") || resultLower.includes("high risk")) {
@@ -356,14 +355,13 @@ export async function getRecentPatientRegistrations() {
 
 export async function getRecentActivities() {
   try {
-    // Get recent patients (last 5)
+    // Get recent patients (last 3) - using 'name' field instead of firstName/lastName
     const recentPatients = await prisma.patient.findMany({
       take: 3,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         createdAt: true,
       },
     })
@@ -375,22 +373,20 @@ export async function getRecentActivities() {
       include: {
         patient: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
           },
         },
       },
     })
 
-    // Get recent lab tests (last 3)
-    const recentTests = await prisma.labTest.findMany({
+    // Get recent test results (last 3)
+    const recentTests = await prisma.testResult.findMany({
       take: 3,
       orderBy: { createdAt: "desc" },
       include: {
         patient: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
           },
         },
       },
@@ -404,7 +400,7 @@ export async function getRecentActivities() {
         id: `patient-${patient.id}`,
         type: "patient",
         title: "New Patient Registered",
-        description: `${patient.firstName} ${patient.lastName}`,
+        description: patient.name,
         time: patient.createdAt,
         icon: "Users",
         color: "bg-blue-500",
@@ -416,7 +412,7 @@ export async function getRecentActivities() {
         id: `appointment-${appointment.id}`,
         type: "appointment",
         title: "New Appointment",
-        description: `${appointment.patient.firstName} ${appointment.patient.lastName} - ${appointment.type}`,
+        description: `${appointment.patient.name} - ${appointment.type}`,
         time: appointment.createdAt,
         icon: "Calendar",
         color: "bg-green-500",
@@ -428,7 +424,7 @@ export async function getRecentActivities() {
         id: `test-${test.id}`,
         type: "test",
         title: "Lab Test Ordered",
-        description: `${test.patient.firstName} ${test.patient.lastName} - ${test.testName}`,
+        description: `${test.patient.name} - ${test.testName}`,
         time: test.createdAt,
         icon: "Microscope",
         color: "bg-purple-500",
@@ -465,8 +461,7 @@ export async function getUpcomingAppointments() {
       include: {
         patient: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
           },
         },
       },
@@ -481,15 +476,15 @@ export async function getUpcomingAppointments() {
 
 export async function getLabTestStatus() {
   try {
-    const pendingTests = await prisma.labTest.count({
+    const pendingTests = await prisma.testResult.count({
       where: { status: "PENDING" },
     })
 
-    const inProgressTests = await prisma.labTest.count({
+    const inProgressTests = await prisma.testResult.count({
       where: { status: "IN_PROGRESS" },
     })
 
-    const completedTests = await prisma.labTest.count({
+    const completedTests = await prisma.testResult.count({
       where: { status: "COMPLETED" },
     })
 
@@ -530,7 +525,7 @@ export async function getTodayStats() {
       },
     })
 
-    const todayTests = await prisma.labTest.count({
+    const todayTests = await prisma.testResult.count({
       where: {
         createdAt: {
           gte: startOfDay,

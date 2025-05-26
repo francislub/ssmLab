@@ -201,7 +201,7 @@ export default function DashboardPage() {
               Welcome back to your <span className="font-semibold text-yellow-300">{userRole.toLowerCase()}</span>{" "}
               dashboard
             </p>
-            <p className="text-blue-200">{"Here's what's happening at Kebera Lab today"}</p>
+            <p className="text-blue-200">{"Here's what's happening at SSM Lab today"}</p>
           </div>
           <div className="hidden md:flex items-center space-x-4">
             <div className="text-right">
@@ -457,14 +457,11 @@ export default function DashboardPage() {
                   <div key={appointment.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-blue-100 text-blue-600">
-                        {appointment.patient.firstName.charAt(0)}
-                        {appointment.patient.lastName.charAt(0)}
+                        {appointment.patient.name.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">
-                        {appointment.patient.firstName} {appointment.patient.lastName}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{appointment.patient.name}</p>
                       <p className="text-sm text-gray-500">{appointment.type}</p>
                     </div>
                     <div className="text-xs text-gray-400">{new Date(appointment.date).toLocaleDateString()}</div>
