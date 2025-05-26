@@ -90,22 +90,11 @@ export async function getTestDistributionData() {
 
     // Format data for pie chart
     const testData = testCategories.map((category) => ({
-      name: category.category,
+      name: category.category || "Uncategorized",
       value: category._count.id,
     }))
 
-    // If no data, provide sample data
-    if (testData.length === 0) {
-      return {
-        testData: [
-          { name: "Blood Tests", value: 45 },
-          { name: "Urine Tests", value: 30 },
-          { name: "Imaging", value: 15 },
-          { name: "Microbiology", value: 10 },
-        ],
-      }
-    }
-
+    // If no data, return empty array (charts will handle empty state)
     return { testData }
   } catch (error) {
     console.error("Error fetching test distribution data:", error)
@@ -166,42 +155,152 @@ export async function getAppointmentData() {
 
 export async function getPatientDemographicsData() {
   try {
-    // This is a simplified implementation
-    // In a real app, you would query the database for actual demographics
-    const demographicsData = [
-      { age: "0-10", male: 50, female: 45 },
-      { age: "11-20", male: 35, female: 40 },
-      { age: "21-30", male: 60, female: 70 },
-      { age: "31-40", male: 80, female: 85 },
-      { age: "41-50", male: 70, female: 65 },
-      { age: "51-60", male: 55, female: 50 },
-      { age: "61-70", male: 40, female: 45 },
-      { age: "71+", male: 30, female: 35 },
+    // Get all patients with their gender and date of birth
+    const patients = await prisma.patient.findMany({
+      select: {
+        gender: true,
+        dateOfBirth: true,
+      },
+    })
+
+    // Initialize age groups
+    const ageGroups = [
+      { age: "0-10", male: 0, female: 0 },
+      { age: "11-20", male: 0, female: 0 },
+      { age: "21-30", male: 0, female: 0 },
+      { age: "31-40", male: 0, female: 0 },
+      { age: "41-50", male: 0, female: 0 },
+      { age: "51-60", male: 0, female: 0 },
+      { age: "61-70", male: 0, female: 0 },
+      { age: "71+", male: 0, female: 0 },
     ]
 
-    return { demographicsData }
+    // Calculate age and categorize patients
+    const currentDate = new Date()
+
+    patients.forEach((patient) => {
+      if (!patient.dateOfBirth) return
+
+      // Calculate age
+      const age = currentDate.getFullYear() - patient.dateOfBirth.getFullYear()
+      const monthDiff = currentDate.getMonth() - patient.dateOfBirth.getMonth()
+      const actualAge =
+        monthDiff < 0 || (monthDiff === 0 && currentDate.getDate() < patient.dateOfBirth.getDate()) ? age - 1 : age
+
+      // Determine age group index
+      let ageGroupIndex = 0
+      if (actualAge <= 10) ageGroupIndex = 0
+      else if (actualAge <= 20) ageGroupIndex = 1
+      else if (actualAge <= 30) ageGroupIndex = 2
+      else if (actualAge <= 40) ageGroupIndex = 3
+      else if (actualAge <= 50) ageGroupIndex = 4
+      else if (actualAge <= 60) ageGroupIndex = 5
+      else if (actualAge <= 70) ageGroupIndex = 6
+      else ageGroupIndex = 7
+
+      // Increment count based on gender
+      if (patient.gender === "MALE") {
+        ageGroups[ageGroupIndex].male++
+      } else if (patient.gender === "FEMALE") {
+        ageGroups[ageGroupIndex].female++
+      }
+    })
+
+    return { demographicsData: ageGroups }
   } catch (error) {
     console.error("Error fetching patient demographics data:", error)
-    return { error: "Failed to fetch patient demographics data" }
+    return {
+      error: "Failed to fetch patient demographics data",
+      demographicsData: [
+        { age: "0-10", male: 0, female: 0 },
+        { age: "11-20", male: 0, female: 0 },
+        { age: "21-30", male: 0, female: 0 },
+        { age: "31-40", male: 0, female: 0 },
+        { age: "41-50", male: 0, female: 0 },
+        { age: "51-60", male: 0, female: 0 },
+        { age: "61-70", male: 0, female: 0 },
+        { age: "71+", male: 0, female: 0 },
+      ],
+    }
   }
 }
 
 export async function getTestResultsData() {
   try {
-    // This is a simplified implementation
-    // In a real app, you would query the database for actual test results
-    const resultsData = [
-      { month: "Jan", normal: 65, abnormal: 28, critical: 7 },
-      { month: "Feb", normal: 59, abnormal: 32, critical: 9 },
-      { month: "Mar", normal: 80, abnormal: 35, critical: 5 },
-      { month: "Apr", normal: 81, abnormal: 30, critical: 11 },
-      { month: "May", normal: 56, abnormal: 25, critical: 8 },
-      { month: "Jun", normal: 55, abnormal: 20, critical: 5 },
-    ]
+    // Get current year
+    const currentYear = new Date().getFullYear()
+
+    // Create array for all months
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // Initialize data array with all months and zero counts
+    const resultsData = months.map((month) => ({
+      month,
+      normal: 0,
+      abnormal: 0,
+      critical: 0,
+    }))
+
+    // Get lab tests with results from this year
+    const labTests = await prisma.labTest.findMany({
+      where: {
+        createdAt: {
+          gte: new Date(`${currentYear}-01-01`),
+          lt: new Date(`${currentYear + 1}-01-01`),
+        },
+        status: "COMPLETED",
+        result: {
+          not: null,
+        },
+      },
+      select: {
+        createdAt: true,
+        result: true,
+      },
+    })
+
+    // Count test results by month and category
+    labTests.forEach((test) => {
+      const monthIndex = test.createdAt.getMonth()
+
+      if (test.result) {
+        // Simple categorization based on result content
+        // You can enhance this logic based on your specific result format
+        const resultLower = test.result.toLowerCase()
+
+        if (resultLower.includes("critical") || resultLower.includes("urgent") || resultLower.includes("high risk")) {
+          resultsData[monthIndex].critical++
+        } else if (
+          resultLower.includes("abnormal") ||
+          resultLower.includes("elevated") ||
+          resultLower.includes("low")
+        ) {
+          resultsData[monthIndex].abnormal++
+        } else {
+          resultsData[monthIndex].normal++
+        }
+      }
+    })
 
     return { resultsData }
   } catch (error) {
     console.error("Error fetching test results data:", error)
-    return { error: "Failed to fetch test results data" }
+    return {
+      error: "Failed to fetch test results data",
+      resultsData: [
+        { month: "Jan", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Feb", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Mar", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Apr", normal: 0, abnormal: 0, critical: 0 },
+        { month: "May", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Jun", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Jul", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Aug", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Sep", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Oct", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Nov", normal: 0, abnormal: 0, critical: 0 },
+        { month: "Dec", normal: 0, abnormal: 0, critical: 0 },
+      ],
+    }
   }
 }
