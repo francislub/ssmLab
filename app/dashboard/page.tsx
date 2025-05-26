@@ -4,7 +4,22 @@ import React, { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Calendar, Microscope, CreditCard, Pill, TrendingUp, Activity } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Users,
+  Calendar,
+  Microscope,
+  CreditCard,
+  Pill,
+  TrendingUp,
+  Activity,
+  Clock,
+  Plus,
+  FileText,
+  UserPlus,
+} from "lucide-react"
 import {
   Area,
   AreaChart,
@@ -12,9 +27,6 @@ import {
   BarChart,
   Line,
   LineChart,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -25,10 +37,14 @@ import {
 import {
   getDashboardStats,
   getPatientRegistrationData,
-  getTestDistributionData,
+  getRecentPatientRegistrations,
   getAppointmentData,
   getPatientDemographicsData,
   getTestResultsData,
+  getRecentActivities,
+  getUpcomingAppointments,
+  getLabTestStatus,
+  getTodayStats,
 } from "@/lib/actions/dashboard-actions"
 import { getRevenueData } from "@/lib/actions/payment-actions"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -40,12 +56,16 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview")
   const [stats, setStats] = useState<any[]>([])
   const [patientData, setPatientData] = useState<any[]>([])
-  const [testData, setTestData] = useState<any[]>([])
+  const [recentRegistrations, setRecentRegistrations] = useState<any[]>([])
   const [appointmentData, setAppointmentData] = useState<any[]>([])
   const [revenueData, setRevenueData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [demographicsData, setDemographicsData] = useState<any[]>([])
   const [testResultsData, setTestResultsData] = useState<any[]>([])
+  const [recentActivities, setRecentActivities] = useState<any[]>([])
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
+  const [testStatus, setTestStatus] = useState<any[]>([])
+  const [todayStats, setTodayStats] = useState<any>({})
 
   const userRole = session?.user?.role || "RECEPTIONIST"
 
@@ -66,10 +86,10 @@ export default function DashboardPage() {
           setPatientData(patientResult.patientData)
         }
 
-        // Fetch test distribution data
-        const testResult = await getTestDistributionData()
-        if (!testResult.error) {
-          setTestData(testResult.testData)
+        // Fetch recent patient registrations
+        const recentResult = await getRecentPatientRegistrations()
+        if (!recentResult.error) {
+          setRecentRegistrations(recentResult.recentRegistrations)
         }
 
         // Fetch appointment data
@@ -94,6 +114,30 @@ export default function DashboardPage() {
         const resultsResult = await getTestResultsData()
         if (!resultsResult.error) {
           setTestResultsData(resultsResult.resultsData)
+        }
+
+        // Fetch recent activities
+        const activitiesResult = await getRecentActivities()
+        if (!activitiesResult.error) {
+          setRecentActivities(activitiesResult.recentActivities)
+        }
+
+        // Fetch upcoming appointments
+        const upcomingResult = await getUpcomingAppointments()
+        if (!upcomingResult.error) {
+          setUpcomingAppointments(upcomingResult.upcomingAppointments)
+        }
+
+        // Fetch lab test status
+        const testStatusResult = await getLabTestStatus()
+        if (!testStatusResult.error) {
+          setTestStatus(testStatusResult.testStatus)
+        }
+
+        // Fetch today stats
+        const todayStatsResult = await getTodayStats()
+        if (!todayStatsResult.error) {
+          setTodayStats(todayStatsResult.todayStats)
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
@@ -129,13 +173,113 @@ export default function DashboardPage() {
     return colors[index % colors.length]
   }
 
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return "Good Morning"
+    if (hour < 17) return "Good Afternoon"
+    return "Good Evening"
+  }
+
+  const formatTime = (date: Date) => {
+    return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
+      Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+      "day",
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back, {session?.user?.name}!</p>
+      {/* Welcome Banner */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 p-8 text-white">
+        <div className="absolute inset-0 bg-black/20"></div>
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold">
+              {getGreeting()}, {session?.user?.name}! 👋
+            </h1>
+            <p className="text-xl text-blue-100">
+              Welcome back to your <span className="font-semibold text-yellow-300">{userRole.toLowerCase()}</span>{" "}
+              dashboard
+            </p>
+            <p className="text-blue-200">{"Here's what's happening at Kebera Lab today"}</p>
+          </div>
+          <div className="hidden md:flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-sm text-blue-200">Today</p>
+              <p className="text-2xl font-bold">{new Date().toLocaleDateString()}</p>
+            </div>
+            <Avatar className="h-16 w-16 border-4 border-white/20">
+              <AvatarImage src="/placeholder.svg" alt={session?.user?.name || "User"} />
+              <AvatarFallback className="bg-white/20 text-white text-xl">
+                {session?.user?.name?.charAt(0) || "U"}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+        </div>
+        <div className="absolute -bottom-6 -right-6 h-32 w-32 rounded-full bg-white/10"></div>
+        <div className="absolute -top-6 -left-6 h-24 w-24 rounded-full bg-white/10"></div>
       </div>
 
+      {/* Today's Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-600">Today's Patients</p>
+                <p className="text-2xl font-bold text-blue-700">{todayStats.patients || 0}</p>
+              </div>
+              <div className="rounded-full bg-blue-500 p-3 text-white">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500 bg-gradient-to-r from-green-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600">Today's Appointments</p>
+                <p className="text-2xl font-bold text-green-700">{todayStats.appointments || 0}</p>
+              </div>
+              <div className="rounded-full bg-green-500 p-3 text-white">
+                <Calendar className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-purple-500 bg-gradient-to-r from-purple-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-600">Today's Tests</p>
+                <p className="text-2xl font-bold text-purple-700">{todayStats.tests || 0}</p>
+              </div>
+              <div className="rounded-full bg-purple-500 p-3 text-white">
+                <Microscope className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-amber-500 bg-gradient-to-r from-amber-50 to-white">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-amber-600">Today's Revenue</p>
+                <p className="text-2xl font-bold text-amber-700">${todayStats.revenue?.toFixed(2) || "0.00"}</p>
+              </div>
+              <div className="rounded-full bg-amber-500 p-3 text-white">
+                <CreditCard className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {loading
           ? Array(4)
@@ -154,7 +298,7 @@ export default function DashboardPage() {
                 </Card>
               ))
           : stats.map((stat, index) => (
-              <Card key={index} className="overflow-hidden">
+              <Card key={index} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -169,6 +313,169 @@ export default function DashboardPage() {
                 <div className="h-1 w-full bg-gradient-to-r from-primary to-primary-foreground/20"></div>
               </Card>
             ))}
+      </div>
+
+      {/* Quick Actions & Recent Activities */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Quick Actions */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-500" />
+              Quick Actions
+            </CardTitle>
+            <CardDescription>Common tasks and shortcuts</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button className="w-full justify-start bg-blue-500 hover:bg-blue-600" size="sm">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add New Patient
+            </Button>
+            <Button className="w-full justify-start bg-green-500 hover:bg-green-600" size="sm">
+              <Calendar className="mr-2 h-4 w-4" />
+              Schedule Appointment
+            </Button>
+            <Button className="w-full justify-start bg-purple-500 hover:bg-purple-600" size="sm">
+              <Microscope className="mr-2 h-4 w-4" />
+              Order Lab Test
+            </Button>
+            <Button className="w-full justify-start bg-amber-500 hover:bg-amber-600" size="sm">
+              <FileText className="mr-2 h-4 w-4" />
+              Generate Report
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activities */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-green-500" />
+              Recent Activities
+            </CardTitle>
+            <CardDescription>Latest system activities and updates</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-80 overflow-y-auto">
+              {loading ? (
+                Array(5)
+                  .fill(0)
+                  .map((_, i) => (
+                    <div key={i} className="flex items-center space-x-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-1 flex-1">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                  ))
+              ) : recentActivities.length > 0 ? (
+                recentActivities.map((activity) => (
+                  <div key={activity.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
+                    <div className={`rounded-full p-2 ${activity.color} text-white`}>
+                      {activity.icon === "Users" && <Users className="h-4 w-4" />}
+                      {activity.icon === "Calendar" && <Calendar className="h-4 w-4" />}
+                      {activity.icon === "Microscope" && <Microscope className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{activity.title}</p>
+                      <p className="text-sm text-gray-500 truncate">{activity.description}</p>
+                    </div>
+                    <div className="text-xs text-gray-400">{new Date(activity.time).toLocaleDateString()}</div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-gray-500 py-4">No recent activities</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Lab Test Status & Upcoming Appointments */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Lab Test Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Microscope className="h-5 w-5 text-purple-500" />
+              Lab Test Status
+            </CardTitle>
+            <CardDescription>Current status of all lab tests</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {loading
+                ? Array(3)
+                    .fill(0)
+                    .map((_, i) => (
+                      <div key={i} className="flex items-center justify-between">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-6 w-12" />
+                      </div>
+                    ))
+                : testStatus.map((status, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-3 h-3 rounded-full ${status.color}`}></div>
+                        <span className="font-medium">{status.status}</span>
+                      </div>
+                      <Badge variant="secondary" className="font-bold">
+                        {status.count}
+                      </Badge>
+                    </div>
+                  ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Upcoming Appointments */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-500" />
+              Upcoming Appointments
+            </CardTitle>
+            <CardDescription>Next 5 scheduled appointments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-80 overflow-y-auto">
+              {loading ? (
+                Array(3)
+                  .fill(0)
+                  .map((_, i) => (
+                    <div key={i} className="flex items-center space-x-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="space-y-1 flex-1">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                  ))
+              ) : upcomingAppointments.length > 0 ? (
+                upcomingAppointments.map((appointment) => (
+                  <div key={appointment.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                        {appointment.patient.firstName.charAt(0)}
+                        {appointment.patient.lastName.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {appointment.patient.firstName} {appointment.patient.lastName}
+                      </p>
+                      <p className="text-sm text-gray-500">{appointment.type}</p>
+                    </div>
+                    <div className="text-xs text-gray-400">{new Date(appointment.date).toLocaleDateString()}</div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-gray-500 py-4">No upcoming appointments</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -221,8 +528,8 @@ export default function DashboardPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Test Distribution</CardTitle>
-                <CardDescription>Distribution of different types of tests</CardDescription>
+                <CardTitle>Recent Patient Registrations</CardTitle>
+                <CardDescription>Daily patient registrations for the last 7 days</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -232,24 +539,28 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={testData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {testData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
+                      <BarChart data={recentRegistrations}>
+                        <defs>
+                          <linearGradient id="colorRegistrations" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#00C49F" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#00C49F" stopOpacity={0.3} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="day" />
+                        <YAxis />
+                        <Tooltip
+                          formatter={(value) => [value, "Registrations"]}
+                          labelFormatter={(label) => `${label}`}
+                        />
+                        <Bar
+                          dataKey="registrations"
+                          fill="url(#colorRegistrations)"
+                          stroke="#00C49F"
+                          strokeWidth={1}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
                     </ResponsiveContainer>
                   )}
                 </div>

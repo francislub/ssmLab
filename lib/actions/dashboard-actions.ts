@@ -304,3 +304,265 @@ export async function getTestResultsData() {
     }
   }
 }
+
+export async function getRecentPatientRegistrations() {
+  try {
+    // Get the last 7 days
+    const today = new Date()
+    const sevenDaysAgo = new Date(today)
+    sevenDaysAgo.setDate(today.getDate() - 6)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+
+    // Initialize data for each day
+    const days = []
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(today.getDate() - i)
+      days.push({
+        day: date.toLocaleDateString("en-US", { weekday: "short" }),
+        date: date.toISOString().split("T")[0],
+        registrations: 0,
+      })
+    }
+
+    // Get patients registered in the last 7 days
+    const patients = await prisma.patient.findMany({
+      where: {
+        createdAt: {
+          gte: sevenDaysAgo,
+          lte: new Date(today.getTime() + 24 * 60 * 60 * 1000), // Include today
+        },
+      },
+      select: {
+        createdAt: true,
+      },
+    })
+
+    // Count registrations by day
+    patients.forEach((patient) => {
+      const patientDate = patient.createdAt.toISOString().split("T")[0]
+      const dayData = days.find((day) => day.date === patientDate)
+      if (dayData) {
+        dayData.registrations++
+      }
+    })
+
+    return { recentRegistrations: days }
+  } catch (error) {
+    console.error("Error fetching recent patient registrations:", error)
+    return { error: "Failed to fetch recent registrations", recentRegistrations: [] }
+  }
+}
+
+export async function getRecentActivities() {
+  try {
+    // Get recent patients (last 5)
+    const recentPatients = await prisma.patient.findMany({
+      take: 3,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        createdAt: true,
+      },
+    })
+
+    // Get recent appointments (last 3)
+    const recentAppointments = await prisma.appointment.findMany({
+      take: 3,
+      orderBy: { createdAt: "desc" },
+      include: {
+        patient: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    })
+
+    // Get recent lab tests (last 3)
+    const recentTests = await prisma.labTest.findMany({
+      take: 3,
+      orderBy: { createdAt: "desc" },
+      include: {
+        patient: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    })
+
+    // Combine and format activities
+    const activities = []
+
+    recentPatients.forEach((patient) => {
+      activities.push({
+        id: `patient-${patient.id}`,
+        type: "patient",
+        title: "New Patient Registered",
+        description: `${patient.firstName} ${patient.lastName}`,
+        time: patient.createdAt,
+        icon: "Users",
+        color: "bg-blue-500",
+      })
+    })
+
+    recentAppointments.forEach((appointment) => {
+      activities.push({
+        id: `appointment-${appointment.id}`,
+        type: "appointment",
+        title: "New Appointment",
+        description: `${appointment.patient.firstName} ${appointment.patient.lastName} - ${appointment.type}`,
+        time: appointment.createdAt,
+        icon: "Calendar",
+        color: "bg-green-500",
+      })
+    })
+
+    recentTests.forEach((test) => {
+      activities.push({
+        id: `test-${test.id}`,
+        type: "test",
+        title: "Lab Test Ordered",
+        description: `${test.patient.firstName} ${test.patient.lastName} - ${test.testName}`,
+        time: test.createdAt,
+        icon: "Microscope",
+        color: "bg-purple-500",
+      })
+    })
+
+    // Sort by time and take latest 8
+    activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    const recentActivities = activities.slice(0, 8)
+
+    return { recentActivities }
+  } catch (error) {
+    console.error("Error fetching recent activities:", error)
+    return { error: "Failed to fetch recent activities", recentActivities: [] }
+  }
+}
+
+export async function getUpcomingAppointments() {
+  try {
+    const today = new Date()
+    const nextWeek = new Date(today)
+    nextWeek.setDate(today.getDate() + 7)
+
+    const upcomingAppointments = await prisma.appointment.findMany({
+      where: {
+        date: {
+          gte: today,
+          lte: nextWeek,
+        },
+        status: "SCHEDULED",
+      },
+      take: 5,
+      orderBy: { date: "asc" },
+      include: {
+        patient: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    })
+
+    return { upcomingAppointments }
+  } catch (error) {
+    console.error("Error fetching upcoming appointments:", error)
+    return { error: "Failed to fetch upcoming appointments", upcomingAppointments: [] }
+  }
+}
+
+export async function getLabTestStatus() {
+  try {
+    const pendingTests = await prisma.labTest.count({
+      where: { status: "PENDING" },
+    })
+
+    const inProgressTests = await prisma.labTest.count({
+      where: { status: "IN_PROGRESS" },
+    })
+
+    const completedTests = await prisma.labTest.count({
+      where: { status: "COMPLETED" },
+    })
+
+    const testStatus = [
+      { status: "Pending", count: pendingTests, color: "bg-yellow-500" },
+      { status: "In Progress", count: inProgressTests, color: "bg-blue-500" },
+      { status: "Completed", count: completedTests, color: "bg-green-500" },
+    ]
+
+    return { testStatus }
+  } catch (error) {
+    console.error("Error fetching lab test status:", error)
+    return { error: "Failed to fetch lab test status", testStatus: [] }
+  }
+}
+
+export async function getTodayStats() {
+  try {
+    const today = new Date()
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0))
+    const endOfDay = new Date(today.setHours(23, 59, 59, 999))
+
+    const todayPatients = await prisma.patient.count({
+      where: {
+        createdAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    })
+
+    const todayAppointments = await prisma.appointment.count({
+      where: {
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    })
+
+    const todayTests = await prisma.labTest.count({
+      where: {
+        createdAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    })
+
+    const todayPayments = await prisma.payment.findMany({
+      where: {
+        createdAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    })
+
+    const todayRevenue = todayPayments.reduce((sum, payment) => sum + payment.amount, 0)
+
+    return {
+      todayStats: {
+        patients: todayPatients,
+        appointments: todayAppointments,
+        tests: todayTests,
+        revenue: todayRevenue,
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching today stats:", error)
+    return {
+      error: "Failed to fetch today stats",
+      todayStats: { patients: 0, appointments: 0, tests: 0, revenue: 0 },
+    }
+  }
+}
